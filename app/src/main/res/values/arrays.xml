@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="opsi_lokasi_box">
+        <item>Rak A-04 · Gudang atelier</item>
+        <item>Rak A-03 · Gudang atelier</item>
+        <item>Rak B-01 · Gudang atelier</item>
+    </string-array>
+
+    <string-array name="opsi_kategori_box">
+        <item>Kebaya</item>
+        <item>Gaun</item>
+        <item>Aksesori</item>
+        <item>Perlengkapan</item>
+        <item>Lainnya</item>
+    </string-array>
+
+</resources>
