@@ -222,7 +222,7 @@ fun RegisterScreen(
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text(
-                                text = "Daftar akun Owner",
+                                text = "Buat akun baru",
                                 fontSize = 27.sp,
                                 fontFamily = FontFamily.Serif,
                                 color = Brown
@@ -469,7 +469,7 @@ fun RegisterScreen(
                                 )
                             ) {
                                 Text(
-                                    text = "Daftar sebagai Owner",
+                                    text = "Daftar sekarang",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -513,7 +513,7 @@ fun RegisterScreen(
                             color = Gold
                         )
                         Text(
-                            text = "AKSES OWNER",
+                            text = "AKSES PENGGUNA",
                             modifier = Modifier.padding(horizontal = 20.dp),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,

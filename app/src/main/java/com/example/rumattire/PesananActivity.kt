@@ -51,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rumattire.R
+import androidx.compose.ui.draw.clip
 
 // ---------- Palet warna (sama dengan layar lain) ----------
 private val Canvas = Color(0xFFF7F3EB)
@@ -289,39 +290,69 @@ fun PesananScreen(
                     )
                 }
 
-                // Filter (bisa digeser ke samping)
+
+                // FILTER STATUS PESANAN
                 Row(
                     modifier = Modifier
-                        .padding(top = 8.dp)
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    (filters + orders.map { it.filterKey }).distinct().forEach { filter ->
-                        val selected = filter == selectedFilter
-                        Text(
-                            text = filter,
-                            modifier = Modifier
-                                .height(36.dp)
-                                .then(
-                                    if (selected) {
-                                        Modifier.background(Brown, RoundedCornerShape(50))
-                                    } else {
-                                        Modifier.border(
-                                            1.dp,
-                                            ChipInactiveBorder,
-                                            RoundedCornerShape(50)
-                                        )
+
+                    (filters + orders.map { it.filterKey })
+                        .distinct()
+                        .forEach { filter ->
+
+                            val selected = filter == selectedFilter
+
+                            Box(
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected) Brown else Color.White
+                                    )
+                                    .then(
+                                        if (selected) {
+                                            Modifier
+                                        } else {
+                                            Modifier.border(
+                                                1.dp,
+                                                ChipInactiveBorder,
+                                                RoundedCornerShape(50)
+                                            )
+                                        }
+                                    )
+                                    .clickable {
+                                        selectedFilter = filter
                                     }
+                                    .padding(horizontal = 15.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+
+                                Text(
+                                    text = filter,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = if (selected) {
+                                        FontWeight.Bold
+                                    } else {
+                                        FontWeight.Normal
+                                    },
+                                    color = if (selected) {
+                                        Color.White
+                                    } else {
+                                        BrownSoft
+                                    },
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
-                                .clickable { selectedFilter = filter }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            fontSize = 12.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) Color.White else BrownSoft
-                        )
-                    }
+                            }
+                        }
                 }
+
 
                 // Daftar pesanan
                 filtered.forEachIndexed { index, order ->

@@ -61,4 +61,20 @@ dependencies {
 
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.caverock:androidsvg-aar:1.4")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.foundation:foundation")
+
+    // CameraX
+    val cameraxVersion = "1.6.2"
+
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
+// Google ML Kit - Bundled Barcode Scanner
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+// Material Icons
+    implementation("androidx.compose.material:material-icons-extended")
 }

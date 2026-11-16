@@ -45,6 +45,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.rumattire.R
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 
 // ---------- Palet warna (sama dengan layar lain) ----------
 private val Canvas = Color(0xFFF7F3EB)
@@ -60,6 +62,8 @@ private val Orange = Color(0xFFD64E09)
 private val OrangeSoft = Color(0xFFFCE9DC)
 private val GreenSoft = Color(0xFFE3F4EE)
 private val CardDivider = Color(0xFFF0E5D8)
+
+private val InventoriChipInactiveBorder = Color(0xFFE4D6C4)
 
 private val AtelierColors = lightColorScheme(
     primary = Brown,
@@ -259,32 +263,69 @@ fun InventoriScreen(
                     )
                 }
 
-                // Filter kategori (bisa digeser ke samping)
+
+                // FILTER KATEGORI
                 Row(
                     modifier = Modifier
-                        .padding(top = 8.dp)
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    (categories + items.map { it.category }).distinct().forEach { category ->
-                        val selected = category == selectedCategory
-                        Text(
-                            text = category,
-                            modifier = Modifier
-                                .height(32.dp)
-                                .background(
-                                    if (selected) Brown else Color.Transparent,
-                                    RoundedCornerShape(50)
+
+                    (categories + items.map { it.category })
+                        .distinct()
+                        .forEach { category ->
+
+                            val selected = category == selectedCategory
+
+                            Box(
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected) Brown else Color.Transparent
+                                    )
+                                    .then(
+                                        if (selected) {
+                                            Modifier
+                                        } else {
+                                            Modifier.border(
+                                                1.dp,
+                                                InventoriChipInactiveBorder,
+                                                RoundedCornerShape(50)
+                                            )
+                                        }
+                                    )
+                                    .clickable {
+                                        selectedCategory = category
+                                    }
+                                    .padding(horizontal = 15.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+
+                                Text(
+                                    text = category,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = if (selected) {
+                                        FontWeight.Bold
+                                    } else {
+                                        FontWeight.Normal
+                                    },
+                                    color = if (selected) {
+                                        Color.White
+                                    } else {
+                                        BrownSoft
+                                    },
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
-                                .clickable { selectedCategory = category }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            fontSize = 12.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) Color.White else BrownSoft
-                        )
-                    }
+                            }
+                        }
                 }
+
 
                 // Filter box dan tanggal (tampilan saja)
                 Row(

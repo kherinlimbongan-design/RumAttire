@@ -52,6 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.FilterChip
 
 // ---------- Palet warna (dari XML) ----------
 private val Cream = Color(0xFFFCF9F3)
@@ -76,7 +77,12 @@ private val AtelierColors = lightColorScheme(
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    onLoginClick: (email: String, password: String, rememberMe: Boolean) -> Unit,
+    onLoginClick: (
+        email: String,
+        password: String,
+        rememberMe: Boolean,
+        role: AppRole
+    ) -> Unit,
     onForgotPasswordClick: () -> Unit = {},
     onRegisterClick: () -> Unit = {},
     onNameChange: (String) -> Unit = {},
@@ -90,6 +96,11 @@ fun LoginScreen(
         var password by androidx.compose.runtime.remember { mutableStateOf("") }
         var showPassword by rememberSaveable { mutableStateOf(false) }
         var rememberMe by rememberSaveable { mutableStateOf(true) }
+        var selectedRoleName by rememberSaveable {
+            mutableStateOf(AppRole.OWNER.name)
+        }
+
+        val selectedRole = AppRole.fromStored(selectedRoleName)
         val focusManager = LocalFocusManager.current
 
         Box(
@@ -150,7 +161,11 @@ fun LoginScreen(
                 Spacer(Modifier.height(28.dp))
 
                 Text(
-                    text = "RUANG PEMILIK",
+                    text = if (selectedRole == AppRole.OWNER) {
+                        "RUANG PEMILIK"
+                    } else {
+                        "RUANG KARYAWAN"
+                    },
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.10.em,
@@ -171,7 +186,11 @@ fun LoginScreen(
                 Spacer(Modifier.height(12.dp))
 
                 Text(
-                    text = "Kelola atelier, dengan setiap detail terjaga.",
+                    text = if (selectedRole == AppRole.OWNER) {
+                        "Kelola atelier, dengan setiap detail terjaga."
+                    } else {
+                        "Siapkan pesanan, dengan setiap detail terjaga."
+                    },
                     fontSize = 14.sp,
                     color = Cream
                 )
@@ -194,6 +213,53 @@ fun LoginScreen(
                         )
 
                         Spacer(Modifier.height(16.dp))
+
+
+                        Text(
+                            text = "Pilih jenis akses",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Brown
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+
+                            FilterChip(
+                                selected = selectedRole == AppRole.OWNER,
+                                onClick = {
+                                    selectedRoleName = AppRole.OWNER.name
+                                },
+                                label = {
+                                    Text(
+                                        "Owner",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            FilterChip(
+                                selected = selectedRole == AppRole.EMPLOYEE,
+                                onClick = {
+                                    selectedRoleName = AppRole.EMPLOYEE.name
+                                },
+                                label = {
+                                    Text(
+                                        "Employee",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
 
                         OutlinedTextField(
                             value = displayName,
@@ -314,7 +380,14 @@ fun LoginScreen(
                         Spacer(Modifier.height(8.dp))
 
                         Button(
-                            onClick = { onLoginClick(email, password, rememberMe) },
+                            onClick = {
+                                onLoginClick(
+                                    email,
+                                    password,
+                                    rememberMe,
+                                    selectedRole
+                                )
+                            },
                             enabled = !submitting,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -326,7 +399,7 @@ fun LoginScreen(
                             )
                         ) {
                             Text(
-                                text = "Masuk sebagai Owner",
+                                text = "Masuk sebagai ${selectedRole.label}",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -365,7 +438,7 @@ fun LoginScreen(
                         color = Gold
                     )
                     Text(
-                        text = "AKSES OWNER",
+                        text = "MODE ${selectedRole.label.uppercase()}" ,
                         modifier = Modifier.padding(horizontal = 8.dp),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -397,6 +470,8 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 private fun LoginScreenPreview() {
     MaterialTheme {
-        LoginScreen(onLoginClick = { _, _, _ -> })
+        LoginScreen(
+            onLoginClick = { _, _, _, _ -> }
+        )
     }
 }

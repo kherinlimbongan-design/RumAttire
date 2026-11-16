@@ -1,3 +1,4 @@
+
 package com.example.rumattire
 
 import android.content.Context
@@ -9,30 +10,101 @@ import java.util.Locale
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
-internal data class LocalAccount(val name: String, val email: String, val passwordChangedAt: Long)
+// ============================================================
+// APP ROLE
+// ============================================================
+
+enum class AppRole(val label: String) {
+    OWNER("Owner"),
+    EMPLOYEE("Employee");
+
+    companion object {
+        fun fromStored(value: String?): AppRole {
+            return values().firstOrNull { it.name == value }
+                ?: OWNER
+        }
+    }
+}
+
+// ============================================================
+// LOCAL ACCOUNT
+// ============================================================
+
+internal data class LocalAccount(
+    val name: String,
+    val email: String,
+    val passwordChangedAt: Long
+)
+
+// ============================================================
+// LOCAL ACCOUNTS MANAGER
+// ============================================================
 
 internal class LocalAccounts(context: Context) {
-    private val prefs = context.getSharedPreferences("rum_attire_local", Context.MODE_PRIVATE)
+
+    private val prefs = context.getSharedPreferences(
+        "rum_attire_local",
+        Context.MODE_PRIVATE
+    )
 
     var onboardingComplete: Boolean
         get() = prefs.getBoolean("onboarding_complete", false)
-        set(value) { prefs.edit().putBoolean("onboarding_complete", value).apply() }
+        set(value) {
+            prefs.edit()
+                .putBoolean("onboarding_complete", value)
+                .apply()
+        }
 
-    private fun normalize(email: String) = email.trim().lowercase(Locale.ROOT)
+    // Role yang tersimpan pada sesi login.
+    val rememberedRole: AppRole
+        get() = AppRole.fromStored(
+            prefs.getString("session_role", null)
+        )
+
+    private fun normalize(email: String) =
+        email.trim().lowercase(Locale.ROOT)
 
     private fun record(email: String): JSONObject? =
-        prefs.getString("account:${normalize(email)}", null)?.let(::JSONObject)
+        prefs.getString(
+            "account:${normalize(email)}",
+            null
+        )?.let(::JSONObject)
+
+    // ========================================================
+    // RESTORE SESSION
+    // ========================================================
 
     fun remembered(): LocalAccount? {
-        val email = prefs.getString("session_email", null) ?: return null
+
+        val email = prefs.getString(
+            "session_email",
+            null
+        ) ?: return null
+
         return record(email)?.toAccount(email)
     }
 
+    // ========================================================
+    // REGISTER
+    // ========================================================
+
     @Synchronized
-    fun register(name: String, email: String, phone: String, atelier: String, password: String): Boolean {
+    fun register(
+        name: String,
+        email: String,
+        phone: String,
+        atelier: String,
+        password: String
+    ): Boolean {
+
         val key = normalize(email)
+
         if (record(key) != null) return false
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+
+        val salt = ByteArray(16).also {
+            SecureRandom().nextBytes(it)
+        }
+
         val account = JSONObject()
             .put("name", name.trim())
             .put("phone", phone.trim())
@@ -40,56 +112,168 @@ internal class LocalAccounts(context: Context) {
             .put("salt", encode(salt))
             .put("verifier", encode(derive(password, salt)))
             .put("password_changed", System.currentTimeMillis())
-        return prefs.edit().putString("account:$key", account.toString()).commit()
+
+        return prefs.edit()
+            .putString("account:$key", account.toString())
+            .commit()
     }
 
+    // ========================================================
+    // LOGIN WITH ROLE
+    // ========================================================
+
     @Synchronized
-    fun login(email: String, password: String, displayName: String, remember: Boolean): LocalAccount? {
+    fun login(
+        email: String,
+        password: String,
+        displayName: String,
+        remember: Boolean,
+        role: AppRole
+    ): LocalAccount? {
+
         val key = normalize(email)
+
         val account = record(key) ?: return null
+
         if (!matches(account, password)) return null
-        if (displayName.isNotBlank()) account.put("name", displayName.trim())
 
-        val editor = prefs.edit().putString("account:$key", account.toString())
-        if (remember) editor.putString("session_email", key)
-        else editor.remove("session_email")
-        return if (editor.commit()) account.toAccount(key) else null
+        if (displayName.isNotBlank()) {
+            account.put("name", displayName.trim())
+        }
+
+        val editor = prefs.edit()
+            .putString("account:$key", account.toString())
+
+        if (remember) {
+
+            editor.putString("session_email", key)
+            editor.putString("session_role", role.name)
+
+        } else {
+
+            editor.remove("session_email")
+            editor.remove("session_role")
+        }
+
+        return if (editor.commit()) {
+            account.toAccount(key)
+        } else {
+            null
+        }
     }
 
+    // ========================================================
+    // CHANGE PASSWORD
+    // ========================================================
+
     @Synchronized
-    fun changePassword(email: String, current: String, replacement: String): LocalAccount? {
+    fun changePassword(
+        email: String,
+        current: String,
+        replacement: String
+    ): LocalAccount? {
+
         val key = normalize(email)
+
         val account = record(key) ?: return null
+
         if (!matches(account, current)) return null
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+
+        val salt = ByteArray(16).also {
+            SecureRandom().nextBytes(it)
+        }
+
         account.put("salt", encode(salt))
             .put("verifier", encode(derive(replacement, salt)))
             .put("password_changed", System.currentTimeMillis())
-        val saved = prefs.edit().putString("account:$key", account.toString()).commit()
-        return if (saved) account.toAccount(key) else null
+
+        val saved = prefs.edit()
+            .putString("account:$key", account.toString())
+            .commit()
+
+        return if (saved) {
+            account.toAccount(key)
+        } else {
+            null
+        }
     }
+
+    // ========================================================
+    // LOGOUT
+    // ========================================================
 
     @Synchronized
-    fun logout(): Boolean = prefs.edit().remove("session_email").commit()
+    fun logout(): Boolean {
 
-    private fun JSONObject.toAccount(email: String) =
-        LocalAccount(getString("name"), email, optLong("password_changed"))
-
-    private fun matches(account: JSONObject, password: String): Boolean {
-        val salt = Base64.decode(account.getString("salt"), Base64.NO_WRAP)
-        val expected = Base64.decode(account.getString("verifier"), Base64.NO_WRAP)
-        return MessageDigest.isEqual(expected, derive(password, salt))
+        return prefs.edit()
+            .remove("session_email")
+            .remove("session_role")
+            .commit()
     }
 
-    private fun encode(bytes: ByteArray) = Base64.encodeToString(bytes, Base64.NO_WRAP)
+    // ========================================================
+    // HELPERS
+    // ========================================================
 
-    private fun derive(password: String, salt: ByteArray): ByteArray {
+    private fun JSONObject.toAccount(email: String) =
+        LocalAccount(
+            getString("name"),
+            email,
+            optLong("password_changed")
+        )
+
+    private fun matches(
+        account: JSONObject,
+        password: String
+    ): Boolean {
+
+        val salt = Base64.decode(
+            account.getString("salt"),
+            Base64.NO_WRAP
+        )
+
+        val expected = Base64.decode(
+            account.getString("verifier"),
+            Base64.NO_WRAP
+        )
+
+        return MessageDigest.isEqual(
+            expected,
+            derive(password, salt)
+        )
+    }
+
+    private fun encode(bytes: ByteArray) =
+        Base64.encodeToString(
+            bytes,
+            Base64.NO_WRAP
+        )
+
+    private fun derive(
+        password: String,
+        salt: ByteArray
+    ): ByteArray {
+
         val passwordChars = password.toCharArray()
-        val spec = PBEKeySpec(passwordChars, salt, 600_000, 256)
+
+        val spec = PBEKeySpec(
+            passwordChars,
+            salt,
+            600_000,
+            256
+        )
+
         passwordChars.fill('\u0000')
+
         return try {
-            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).encoded
+
+            SecretKeyFactory
+                .getInstance("PBKDF2WithHmacSHA1")
+                .generateSecret(spec)
+                .encoded
+
         } finally {
+
             spec.clearPassword()
         }
     }

@@ -59,6 +59,22 @@ class MainActivity : ComponentActivity() {
 private val ownerTabs = listOf("home", "inventory", "orders", "boxes", "more")
 private val ownerTabLabels = listOf("Beranda", "Inventori", "Pesanan", "Box", "Lainnya")
 
+private val employeeTabs = listOf(
+    "home",
+    "employeeOrders",
+    "employeeScan",
+    "employeeNotifications",
+    "employeeMore"
+)
+
+private val employeeTabLabels = listOf(
+    "Tugas",
+    "Pesanan",
+    "Scan",
+    "Notifikasi",
+    "Lainnya"
+)
+
 @Composable
 private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
     val context = LocalContext.current
@@ -66,6 +82,15 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
     var stack by rememberSaveable { mutableStateOf(arrayListOf("splash")) }
     var loginEmail by rememberSaveable { mutableStateOf("") }
     var loginName by rememberSaveable { mutableStateOf("") }
+    // ROLE AKTIF
+    var activeRoleName by rememberSaveable {
+        mutableStateOf(AppRole.OWNER.name)
+    }
+    val activeRole = AppRole.fromStored(activeRoleName)
+    // ID BOX EMPLOYEE
+    var employeeBoxId by rememberSaveable {
+        mutableStateOf("BX-012")
+    }
     var busy by remember { mutableStateOf(false) }
     var showLogout by rememberSaveable { mutableStateOf(false) }
     val account = workspace.account
@@ -84,21 +109,58 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
         if (stack.size > 1) stack = ArrayList(stack.dropLast(1))
         else if (workspace.account != null && route != "home") stack = arrayListOf("home")
     }
-
     fun tab(index: Int) {
-        val target = ownerTabs.getOrNull(index) ?: return
-        stack = if (target == "home") arrayListOf("home") else arrayListOf("home", target)
-    }
 
-    fun tabLabel(label: String) = tab(ownerTabLabels.indexOf(label))
+        if (activeRole == AppRole.OWNER) {
+
+            val target = ownerTabs.getOrNull(index) ?: return
+
+            stack = if (target == "home") {
+                arrayListOf("home")
+            } else {
+                arrayListOf("home", target)
+            }
+
+        } else {
+
+            val target = employeeTabs.getOrNull(index) ?: return
+
+            stack = if (target == "home") {
+                arrayListOf("home")
+            } else {
+                arrayListOf("home", target)
+            }
+        }
+    }
+    fun tabLabel(label: String) {
+
+        if (activeRole == AppRole.OWNER) {
+
+            tab(ownerTabLabels.indexOf(label))
+
+        } else {
+
+            tab(employeeTabLabels.indexOf(label))
+        }
+    }
     fun loginRoot() { stack = arrayListOf("login") }
 
     fun restoreOrLogin() {
+
         val remembered = workspace.account ?: accounts.remembered()
+
         if (remembered != null) {
+
+            activeRoleName = accounts.rememberedRole.name
+
             workspace.open(remembered)
+
             stack = arrayListOf("home")
-        } else loginRoot()
+
+        } else {
+
+            loginRoot()
+        }
     }
 
     fun authenticate(action: suspend () -> Unit) {
@@ -117,13 +179,54 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
         }
     }
 
+    fun performLogout(currentAccount: LocalAccount) {
+
+        authenticate {
+
+            val success = withContext(Dispatchers.IO) {
+                accounts.logout()
+            }
+
+            if (success) {
+
+                showLogout = false
+
+                loginEmail = currentAccount.email
+                loginName = ""
+
+                // Kembalikan role ke default.
+                activeRoleName = AppRole.OWNER.name
+
+                // Bersihkan workspace.
+                workspace.reset()
+
+                // Kembali ke Login.
+                loginRoot()
+
+            } else {
+
+                notifyUser("Sesi belum dapat diakhiri.")
+            }
+        }
+    }
+
     fun openBox(code: String) {
         val normalized = code.trim().uppercase(Locale.ROOT)
         if (workspace.boxes.containsKey(normalized)) go("box/$normalized")
         else notifyUser("Box $normalized tidak ditemukan.")
     }
 
-    val notifications = { go("notifications") }
+    val notifications: () -> Unit = {
+
+        if (activeRole == AppRole.OWNER) {
+
+            go("notifications")
+
+        } else {
+
+            go("employeeNotifications")
+        }
+    }
 
     BackHandler(enabled = busy || stack.size > 1 || requested != route) {
         if (!busy) {
@@ -163,23 +266,54 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
                         go("help")
                     }
                 },
-                onLoginClick = { email, password, remember ->
+
+                onLoginClick = { email, password, remember, selectedRole ->
+
                     val submittedName = loginName
-                    if (!Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() || password.isBlank()) {
+
+                    if (
+                        !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() ||
+                        password.isBlank()
+                    ) {
+
                         notifyUser("Isi email dan kata sandi yang valid.")
+
                     } else authenticate {
+
                         val loggedIn = withContext(Dispatchers.IO) {
-                            accounts.login(email, password, submittedName, remember)
+
+                            accounts.login(
+                                email = email,
+                                password = password,
+                                displayName = submittedName,
+                                remember = remember,
+                                role = selectedRole
+                            )
                         }
-                        if (loggedIn == null) notifyUser("Email atau kata sandi tidak sesuai. Daftar jika belum punya akun.")
-                        else {
+
+                        if (loggedIn == null) {
+
+                            notifyUser(
+                                "Email atau kata sandi tidak sesuai. Daftar jika belum punya akun."
+                            )
+
+                        } else {
+
+                            // SIMPAN ROLE AKTIF
+                            activeRoleName = selectedRole.name
+
+                            // Buka akun lokal.
                             workspace.open(loggedIn)
+
                             loginName = ""
                             loginEmail = ""
+
+                            // Masuk ke workspace sesuai role.
                             stack = arrayListOf("home")
                         }
                     }
                 }
+
             )
 
             "register" -> RegisterScreen(
@@ -208,7 +342,49 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
                 Text("Pemulihan lewat email memerlukan layanan akun Rum Attire.")
             }
 
-            "home" -> if (account != null) {
+            "home" -> if (
+                account != null &&
+                activeRole == AppRole.EMPLOYEE
+            ) {
+
+                EmployeeDashboardScreen(
+
+                    state = EmployeeDashboardUiState(
+                        employeeName = account.name
+                    ),
+
+                    onNotificationClick = notifications,
+
+                    onPreparationClick = {
+                        go("employeeOrders")
+                    },
+
+                    onScanClick = {
+                        go("employeeScan")
+                    },
+
+                    onReturnsClick = {
+                        go("employeeReturns")
+                    },
+
+                    onOrderClick = {
+                        go("employeeOrders")
+                    },
+
+                    onContinueChecklist = {
+                        go("employeeChecklist")
+                    },
+
+                    onReturnClick = {
+                        go("employeeReturns")
+                    },
+
+                    onTabSelected = { selectedTab ->
+                        tab(selectedTab.ordinal)
+                    }
+                )
+
+            } else if (account != null) {
                 val waiting = workspace.orders.values
                     .filter { workspace.status(it) == "Menunggu konfirmasi" }
                     .sortedBy { it.orderId }
@@ -255,6 +431,232 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
                         }
                     }
                 )
+            }
+
+
+// ============================================================
+// EMPLOYEE - PESANAN
+// ============================================================
+
+            "employeeOrders" -> EmployeeOrdersScreen(
+
+                onNotificationClick = notifications,
+
+                onOrderClick = {
+                    go("employeeChecklist")
+                },
+
+                onTabClick = ::tabLabel
+            )
+
+
+// ============================================================
+// EMPLOYEE - CHECKLIST PERSIAPAN
+// ============================================================
+
+            "employeeChecklist" -> ChecklistPersiapanScreen(
+
+                onBackClick = ::back,
+
+                onSendToOwner = { products ->
+
+                    notifyUser(
+                        "Checklist ${products.size} barang selesai diperiksa."
+                    )
+
+                    go("employeeOrders")
+                }
+            )
+
+
+// ============================================================
+// EMPLOYEE - RETURN MANAGEMENT
+// ============================================================
+
+            "employeeReturns" -> ReturnManagementEmployeeScreen(
+
+                onBack = ::back,
+
+                onItemStatusChanged = { itemId, status ->
+
+                    // Sementara perubahan hanya dikelola di layar.
+                    // Nantinya dapat dihubungkan ke repository/backend.
+                },
+
+                onAddDamagePhoto = { itemId ->
+
+                    notifyUser(
+                        "Fitur foto kerusakan untuk $itemId"
+                    )
+                },
+
+                onFinishReturn = { results ->
+
+                    notifyUser(
+                        "Pemeriksaan ${results.size} barang selesai."
+                    )
+
+                    stack = arrayListOf("home")
+                }
+            )
+
+
+// ============================================================
+// EMPLOYEE - QR SCANNER
+// ============================================================
+
+            "employeeScan" -> ScanEmployeeScreen(
+
+                onNotificationClick = notifications,
+
+                onNavigate = ::tabLabel,
+
+                onScanResult = { value, format ->
+
+                    employeeBoxId = value
+                        .trim()
+                        .uppercase(Locale.ROOT)
+
+                    notifyUser(
+                        "QR berhasil dipindai: $employeeBoxId"
+                    )
+
+                    go("employeeBoxDetail")
+                }
+            )
+
+
+// ============================================================
+// EMPLOYEE - CARI BOX
+// ============================================================
+
+            "employeeBoxSearch" -> CariBoxEmployeeScreen(
+
+                onScanQr = {
+                    go("employeeScan")
+                },
+
+                onNotification = notifications,
+
+                onNavigate = ::tabLabel,
+
+                onOpenBox = { boxId ->
+
+                    employeeBoxId = boxId
+
+                    go("employeeBoxDetail")
+                },
+
+                initialBoxId = employeeBoxId
+            )
+
+
+            // ============================================================
+            // EMPLOYEE - DETAIL BOX
+            // ============================================================
+
+            "employeeBoxDetail" -> DetailBoxEmployeeScreen(
+
+                box = sampleDetailBoxEmployee.copy(
+                    id = employeeBoxId
+                ),
+
+                onBack = ::back,
+
+                onScanAnotherBox = {
+                    go("employeeScan")
+                }
+            )
+
+
+            // ============================================================
+            // EMPLOYEE - NOTIFICATIONS
+            // ============================================================
+
+            "employeeNotifications" -> NotificationsEmployeeScreen(
+
+                onMarkAllRead = {
+                    notifyUser("Semua notifikasi sudah dibaca.")
+                },
+
+                onNotificationClick = { notification ->
+                    // Status dibaca dikelola oleh NotificationsEmployeeScreen.
+                },
+
+                onNotificationAction = { notification ->
+
+                    when (notification.action) {
+
+                        EmployeeNotificationAction.OPEN_CHECKLIST,
+                        EmployeeNotificationAction.RECHECK_ITEMS -> {
+                            go("employeeChecklist")
+                        }
+
+                        EmployeeNotificationAction.START_RETURN_INSPECTION -> {
+                            go("employeeReturns")
+                        }
+
+                        EmployeeNotificationAction.VIEW_ORDER -> {
+                            go("employeeOrders")
+                        }
+                    }
+                },
+
+                onBottomNavigationClick = { destination ->
+
+                    tab(destination.ordinal)
+                }
+            )
+
+            // ============================================================
+            // EMPLOYEE - LAINNYA
+            // ============================================================
+            "employeeMore" -> if (account != null) {
+
+                EmployeeMoreScreen(
+
+                    name = account.name,
+
+                    email = account.email,
+
+                    onOpenProfile = {
+                        go("profile")
+                    },
+
+                    onOpenNotifications = notifications,
+
+                    onOpenAbout = {
+                        go("about")
+                    },
+
+                    onLogout = {
+                        showLogout = true
+                    },
+
+                    onNavigate = ::tabLabel
+                )
+
+                // LOGOUT DIALOG BERSAMA
+
+                if (showLogout) {
+
+                    LogoutDialog(
+
+                        accountName = account.name,
+
+                        accountEmail = account.email,
+
+                        onDismiss = {
+                            if (!busy) {
+                                showLogout = false
+                            }
+                        },
+
+                        onConfirmLogout = {
+                            performLogout(account)
+                        }
+                    )
+                }
             }
 
             "inventory" -> InventoriScreen(
@@ -567,28 +969,44 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
                         accountEmail = account.email,
                         onDismiss = { if (!busy) showLogout = false },
                         onConfirmLogout = {
-                            authenticate {
-                                if (withContext(Dispatchers.IO) { accounts.logout() }) {
-                                    showLogout = false
-                                    loginEmail = account.email
-                                    loginName = ""
-                                    workspace.reset()
-                                    loginRoot()
-                                } else notifyUser("Sesi belum dapat diakhiri.")
-                            }
+                            performLogout(account)
                         }
                     )
                 }
             }
 
             "profile" -> if (account != null) {
+
                 ProfileScreen(
+
                     profile = ProfileUiData(
-                        account.name, account.email, "Owner", "Akses Owner",
-                        "Diubah " + formatOrderDate(account.passwordChangedAt, "d MMM yyyy")
+
+                        name = account.name,
+
+                        email = account.email,
+
+                        role = activeRole.label,
+
+                        accessLabel = if (
+                            activeRole == AppRole.OWNER
+                        ) {
+                            "Akses Owner"
+                        } else {
+                            "Akses Employee"
+                        },
+
+                        passwordUpdatedLabel =
+                            "Diubah " + formatOrderDate(
+                                account.passwordChangedAt,
+                                "d MMM yyyy"
+                            )
                     ),
+
                     onBack = ::back,
-                    onChangePassword = { go("password") }
+
+                    onChangePassword = {
+                        go("password")
+                    }
                 )
             }
 
@@ -611,8 +1029,27 @@ private fun RumAttireApp(accounts: LocalAccounts, workspace: OwnerWorkspace) {
             "about" -> AboutScreen(
                 onBack = ::back,
                 onNotifications = notifications,
-                onNavigate = { tab(it.ordinal) },
-                hasUnreadNotifications = workspace.notices.isNotEmpty()
+
+                onNavigate = { destination ->
+
+                    if (activeRole == AppRole.OWNER) {
+                        tab(destination.ordinal)
+                    } else {
+                        val employeeIndex = when (destination) {
+                            AboutDestination.Home -> 0
+                            AboutDestination.Inventory,
+                            AboutDestination.Orders -> 1
+                            AboutDestination.Boxes -> 2
+                            AboutDestination.More -> 4
+                        }
+
+                        tab(employeeIndex)
+                    }
+                },
+
+                hasUnreadNotifications =
+                    workspace.notices.isNotEmpty() ||
+                            activeRole == AppRole.EMPLOYEE
             )
 
             "notifications" -> WorkspacePage("Notifikasi", ::back) {
